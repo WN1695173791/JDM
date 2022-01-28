@@ -1,2 +1,2 @@
 # JDM (Joint Diffusion Models)
-Learning Joint Distribution via Diffusion Probabilistic Models
+Learning Joint Probability Distribution via Diffusion Probabilistic Models
