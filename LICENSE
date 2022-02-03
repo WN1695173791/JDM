@@ -19,3 +19,18 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+Open Source License Announcement
+
+This software was created by referring to the following libraries:
+
+1. Pytorch-DDPM (unofficial implementation)
+https://github.com/w86763777/pytorch-ddpm
+License: Unknown
+Copyright unknown. 
+
+2. ScoreSDE
+https://github.com/yang-song/score_sde_pytorch
+License: Apache 2.0
+Copyright 2020. The Google Research Authors.
