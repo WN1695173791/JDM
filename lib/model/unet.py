@@ -5,29 +5,17 @@ from torch.nn import init
 from torch.nn import functional as F
 
 
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(x)
-
-
 class TimeEmbedding(nn.Module):
-    def __init__(self, T, d_model, dim):
-        assert d_model % 2 == 0
+    def __init__(self, ch, tdim):
         super().__init__()
-        emb = torch.arange(0, d_model, step=2) / d_model * math.log(10000)
-        emb = torch.exp(-emb)
-        pos = torch.arange(T).float()
-        emb = pos[:, None] * emb[None, :]
-        assert list(emb.shape) == [T, d_model // 2]
-        emb = torch.stack([torch.sin(emb), torch.cos(emb)], dim=-1)
-        assert list(emb.shape) == [T, d_model // 2, 2]
-        emb = emb.view(T, d_model)
+        half_dim = ch // 2
+        emb = math.log(10000) / (half_dim - 1)
+        self.emb = torch.exp(-emb * torch.arange(half_dim, dtype=torch.float32))
 
-        self.timembedding = nn.Sequential(
-            nn.Embedding.from_pretrained(emb),
-            nn.Linear(d_model, dim),
-            Swish(),
-            nn.Linear(dim, dim),
+        self.mlp = nn.Sequential(
+            nn.Linear(ch, tdim),
+            nn.SiLU(),
+            nn.Linear(tdim, tdim),
         )
         self.initialize()
 
@@ -38,7 +26,10 @@ class TimeEmbedding(nn.Module):
                 init.zeros_(module.bias)
 
     def forward(self, t):
-        emb = self.timembedding(t)
+        emb = self.emb.to(t.device)
+        emb = t.float()[:, None] * emb[None, :]
+        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
+        emb = self.mlp(emb)
         return emb
 
 
@@ -69,8 +60,7 @@ class UpSample(nn.Module):
 
     def forward(self, x, temb):
         _, _, H, W = x.shape
-        x = F.interpolate(
-            x, scale_factor=2, mode='nearest')
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         x = self.main(x)
         return x
 
@@ -118,16 +108,16 @@ class ResBlock(nn.Module):
         super().__init__()
         self.block1 = nn.Sequential(
             nn.GroupNorm(32, in_ch),
-            Swish(),
+            nn.SiLU(),
             nn.Conv2d(in_ch, out_ch, 3, stride=1, padding=1),
         )
         self.temb_proj = nn.Sequential(
-            Swish(),
+            nn.SiLU(),
             nn.Linear(tdim, out_ch),
         )
         self.block2 = nn.Sequential(
             nn.GroupNorm(32, out_ch),
-            Swish(),
+            nn.SiLU(),
             nn.Dropout(dropout),
             nn.Conv2d(out_ch, out_ch, 3, stride=1, padding=1),
         )
@@ -160,26 +150,21 @@ class ResBlock(nn.Module):
 
 class UNet(nn.Module):
     def __init__(self,
-        image_size,
-        T,
-        num_classes,
-        ch,
-        ch_mult,
-        attn,
-        num_res_blocks,
-        dropout,
-        x_dropout=0.0,
-        y_dropout=0.0,
+        image_size: int,
+        x_ch: int,
+        y_ch: int,
+        ch: int,
+        ch_mult: list[int],
+        attn: list[int],
+        num_res_blocks: int,
+        dropout: float,
     ):
         super().__init__()
         assert all([i < len(ch_mult) for i in attn]), 'attn index out of bound'
         tdim = ch * 4
         self.image_size = image_size
-        self.x_dropout = nn.Dropout(p=x_dropout)
-        self.y_dropout = nn.Dropout(p=y_dropout)
-
-        self.time_embedding = TimeEmbedding(T, ch, tdim)
-        self.head = nn.Conv2d(4, ch, kernel_size=3, stride=1, padding=1)
+        self.time_embedding = TimeEmbedding(ch, tdim)
+        self.head = nn.Conv2d(x_ch+y_ch, ch, kernel_size=3, stride=1, padding=1)
 
         self.downblocks = nn.ModuleList()
         chs = [ch]  # record output channel when dowmsample for upsample
@@ -187,9 +172,9 @@ class UNet(nn.Module):
         for i, mult in enumerate(ch_mult):
             out_ch = ch * mult
             for _ in range(num_res_blocks):
-                self.downblocks.append(ResBlock(
-                    in_ch=now_ch, out_ch=out_ch, tdim=tdim,
-                    dropout=dropout, attn=(i in attn)))
+                self.downblocks.append(
+                    ResBlock(now_ch, out_ch, tdim, dropout, attn=(i in attn))
+                )
                 now_ch = out_ch
                 chs.append(now_ch)
             if i != len(ch_mult) - 1:
@@ -205,9 +190,8 @@ class UNet(nn.Module):
         for i, mult in reversed(list(enumerate(ch_mult))):
             out_ch = ch * mult
             for _ in range(num_res_blocks + 1):
-                self.upblocks.append(ResBlock(
-                    in_ch=chs.pop() + now_ch, out_ch=out_ch, tdim=tdim,
-                    dropout=dropout, attn=(i in attn)))
+                self.upblocks.append(
+                    ResBlock(chs.pop()+now_ch, out_ch, tdim, dropout, attn=(i in attn)))
                 now_ch = out_ch
             if i != 0:
                 self.upblocks.append(UpSample(now_ch))
@@ -215,8 +199,8 @@ class UNet(nn.Module):
 
         self.tail = nn.Sequential(
             nn.GroupNorm(32, now_ch),
-            Swish(),
-            nn.Conv2d(now_ch, 4, 3, stride=1, padding=1)
+            nn.SiLU(),
+            nn.Conv2d(now_ch, x_ch+y_ch, 3, stride=1, padding=1)
         )
         self.initialize()
 
@@ -226,21 +210,16 @@ class UNet(nn.Module):
         init.xavier_uniform_(self.tail[-1].weight, gain=1e-5)
         init.zeros_(self.tail[-1].bias)
 
-    def forward(self, x, y, t, input_dropout_opt=None):
-        # Concatenate inputs / Timestep embedding
-        if input_dropout_opt == None:
-            pass
-        elif input_dropout_opt == 'x':
-            x = self.x_dropout(x)
-        elif input_dropout_opt == 'y':
-            y = self.y_dropout(y)
-        else:
-            raise ValueError
-        
-        x = torch.cat([x, y], dim=1)
+    def forward(
+        self,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        t: torch.Tensor,
+    ):
+        h = torch.cat([x, y], dim=1)
         temb = self.time_embedding(t)
 
-        h = self.head(x)
+        h = self.head(h)
         hs = [h]
         # Downsampling
         for layer in self.downblocks:
