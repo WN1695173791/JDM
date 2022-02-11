@@ -162,9 +162,8 @@ class UNet(nn.Module):
         super().__init__()
         assert all([i < len(ch_mult) for i in attn]), 'attn index out of bound'
         tdim = ch * 4
-        self.image_size = image_size
         self.time_embedding = TimeEmbedding(ch, tdim)
-        self.head = nn.Conv2d(x_ch+y_ch, ch, kernel_size=3, stride=1, padding=1)
+        self.head = nn.Conv2d(x_ch, ch, kernel_size=3, stride=1, padding=1)
 
         self.downblocks = nn.ModuleList()
         chs = [ch]  # record output channel when dowmsample for upsample
@@ -200,7 +199,7 @@ class UNet(nn.Module):
         self.tail = nn.Sequential(
             nn.GroupNorm(32, now_ch),
             nn.SiLU(),
-            nn.Conv2d(now_ch, x_ch+y_ch, 3, stride=1, padding=1)
+            nn.Conv2d(now_ch, x_ch, 3, stride=1, padding=1)
         )
         self.initialize()
 
@@ -216,7 +215,8 @@ class UNet(nn.Module):
         y: torch.Tensor,
         t: torch.Tensor,
     ):
-        h = torch.cat([x, y], dim=1)
+        h = torch.cat([x, y], dim=3) # spatial concat (32 x 64)
+        # h = torch.cat([x, y], dim=1) # channel-wise concat
         temb = self.time_embedding(t)
 
         h = self.head(h)
@@ -239,7 +239,11 @@ class UNet(nn.Module):
         assert len(hs) == 0
 
         # Split outputs by modalities
-        x_out = h[:, :-1, :, :]
-        y_out = h[:, -1:, :, :]
+
+        # channel-wise concat
+        # x_out, y_out = h[:, :-1, :, :], h[:, -1:, :, :]
+
+        # spatial concat
+        x_out, y_out = h[:, :, :, :32], h[:, :, :, 32:]
         
         return x_out, y_out

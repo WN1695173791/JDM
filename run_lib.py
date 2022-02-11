@@ -166,11 +166,13 @@ def train(config, logdir, resume=True):
                     ys = torch.cat(ys, dim=0)
                     save_image(
                         xs[:64],
-                        os.path.join(sample_dir, option, f'x_{step}.png')
+                        os.path.join(sample_dir, option, f'x_{step}.png'),
+                        nrow=8,
                     )
                     save_image(
                         ys[:64],
-                        os.path.join(sample_dir, option, f'y_{step}.png')
+                        os.path.join(sample_dir, option, f'y_{step}.png'),
+                        nrow=8,
                     )
 
             # Save
@@ -291,9 +293,11 @@ def eval(config, logdir):
         now = datetime.now()
         save_image(
             xs[:64],
-            os.path.join(sample_dir, option, f'x_{now}.png')
+            os.path.join(sample_dir, option, f'x_{now}.png'),
+            nrow=8,
         )
         save_image(
             ys[:64],
-            os.path.join(sample_dir, option, f'y_{now}.png')
+            os.path.join(sample_dir, option, f'y_{now}.png'),
+            nrow=8,
         )
