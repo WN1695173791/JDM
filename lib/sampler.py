@@ -29,7 +29,7 @@ class DiffusionSampler(nn.Module):
         super().__init__()
         self.sde = sde
         self.model = model
-        self.rsde = sde.reverse(model)
+        self.rsde = sde.reverse(model, model_pred_type)
         assert model_pred_type in ['noise', 'original']
         self.model_pred_type = model_pred_type
         self.t_eps = t_eps

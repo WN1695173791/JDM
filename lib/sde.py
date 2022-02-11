@@ -44,9 +44,9 @@ class AbstractSDE(abc.ABC):
         """
         raise NotImplementedError
 
-    @abc.abstractmethod
-    def proposal_distribution(self):
-        raise NotImplementedError
+    # @abc.abstractmethod
+    # def proposal_distribution(self):
+    #     raise NotImplementedError
 
     def reverse(self, model, model_pred_type='noise'):
         """The reverse-time SDE."""
@@ -96,7 +96,7 @@ class VPSDE(AbstractSDE):
         self.beta_0 = beta_min
         self.beta_1 = beta_max
         self.N = N
-        self.IS_dist, self.norm_const = self.proposal_distribution()
+        # self.IS_dist, self.norm_const = self.proposal_distribution()
 
     @property
     def T(self):
@@ -134,17 +134,17 @@ class VPSDE(AbstractSDE):
         y_scale = marginal_coeff / (marginal_std + 1e-12)
         return x_scale, y_scale
 
-    def proposal_distribution(self):
-        def g2(t):
-            return self.beta_0 + t * (self.beta_1 - self.beta_0)
-        def a2(t):
-            log_mean_coeff = -0.25 * t ** 2 * (self.beta_1 - self.beta_0) \
-                - 0.5 * t * self.beta_0
-            return 1. - torch.exp(2. * log_mean_coeff)
-        t = torch.arange(1, 1001) / 1000
-        p = g2(t) / a2(t)
-        normalizing_const = p.sum()
-        return p, normalizing_const
+    # def proposal_distribution(self):
+    #     def g2(t):
+    #         return self.beta_0 + t * (self.beta_1 - self.beta_0)
+    #     def a2(t):
+    #         log_mean_coeff = -0.25 * t ** 2 * (self.beta_1 - self.beta_0) \
+    #             - 0.5 * t * self.beta_0
+    #         return 1. - torch.exp(2. * log_mean_coeff)
+    #     t = torch.arange(1, 1001) / 1000
+    #     p = g2(t) / a2(t)
+    #     normalizing_const = p.sum()
+    #     return p, normalizing_const
 
 
 

@@ -15,14 +15,13 @@ train:
   warmup: 5000
   grad_clip: 1.
   ema_decay: 0.9999
-  sample_step: 20000
+  sample_step: 10000
   save_step: 1000 # Save as 'ckpt_latest.pt'
-  archive_step: 20000 # Save as 'ckpt_{step}.pt'
+  archive_step: 100000 # Save as 'ckpt_{step}.pt'
 
 eval:
   sample_size: 64
   batch_size: 64
-  option: 'x->y'
 
 sde:
   name: 'VPSDE'
@@ -32,7 +31,7 @@ sde:
   
 model:
   name: 'unet'
-  pred_type: 'original'
+  pred_type: 'noise'
   ch: 128
   ch_mult: [1, 2, 2, 2]
   attn: [1,]

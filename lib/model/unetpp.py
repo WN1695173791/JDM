@@ -167,7 +167,7 @@ class UNetpp(nn.Module):
         self.head = nn.Conv2d(x_ch+y_ch, ch, kernel_size=3, stride=1, padding=1)
 
         self.downblocks = nn.ModuleList()
-        chs = [ch]  # record output channel when dowmsample for upsample
+        chs = [ch] # record output channel when dowmsample for upsample
         now_ch = ch
         for i, mult in enumerate(ch_mult):
             out_ch = ch * mult

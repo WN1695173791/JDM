@@ -104,7 +104,7 @@ def int_to_mnist(labels, mnist_loopers):
         temp = torch.Tensor(
             next(mnist_loopers[label.item()]),
         ).unsqueeze(0)
-        temp = F.pad(temp, (2, 2, 2, 2), 'constant')
+        temp = F.pad(temp, (2, 2, 2, 2), 'constant', value=-1.)
         result.append(temp)
     return torch.cat(result, dim=0)
 
@@ -123,7 +123,8 @@ def int_to_cifar10(labels, cifar10_loopers):
 def DataLooper(config, batch_size):
     if config.dataset.x_name.lower() == 'cifar10':
         # Load dataset and dataloader
-        dataset = CIFAR10( root=os.path.join(config.dataset.x_root, 'train'),
+        dataset = CIFAR10(
+            root=os.path.join(config.dataset.x_root, 'train'),
             train=True,
             download=False,
             transform=T.Compose([
@@ -186,7 +187,6 @@ def DataLooper(config, batch_size):
                 labels = np.random.randint(0, 5, size=batch_size)
                 labels = torch.tensor(labels, dtype=torch.long)
                 anti_labels = 9 - labels
-                # x, y changed (anti-mnist 2)
                 x = int_to_mnist(labels, mnist_loopers)
                 y = int_to_mnist(anti_labels, mnist_loopers)
                 yield x, y

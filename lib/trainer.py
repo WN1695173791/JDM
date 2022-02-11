@@ -57,6 +57,8 @@ class DiffusionTrainer(nn.Module):
         elif self.model_pred_type == 'original':
             x_0_pred, y_0_pred = self.model(x_t, y_t, t)
             x_scale, y_scale = self.sde.scale_start_to_noise(t)
+            x_scale = torch.clip(x_scale, min=None, max=5.0)
+            y_scale = torch.clip(y_scale, min=None, max=5.0)
             # x loss
             x_loss = torch.square((x_0_pred - x_0) * x_scale)
             x_loss = x_loss.reshape(B, -1)

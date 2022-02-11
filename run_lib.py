@@ -19,8 +19,14 @@ from lib.sampler import DiffusionSampler
 def train(config, logdir, resume=True):
     """Running a training pipeline"""
     # Dataset setup
-    datalooper = DataLooper(config, batch_size=config.train.batch_size)
-    eval_datalooper = DataLooper(config, batch_size=config.eval.batch_size)
+    datalooper = DataLooper(
+        config,
+        batch_size=config.train.batch_size,
+    )
+    eval_datalooper = DataLooper(
+        config,
+        batch_size=config.eval.batch_size,
+    )
 
     # Model setup
     if config.model.name == 'unet':
@@ -195,7 +201,10 @@ def train(config, logdir, resume=True):
 def eval(config, logdir):
     """Running an evaluation pipeline"""
     # Datalooper setup
-    eval_datalooper = DataLooper(config, batch_size=config.eval.batch_size)
+    eval_datalooper = DataLooper(
+        config,
+        batch_size=config.eval.batch_size,
+    )
     sample_size = config.eval.sample_size
     batch_size = config.eval.batch_size
 
@@ -235,11 +244,16 @@ def eval(config, logdir):
     ).to(config.device)
     sampler.eval()
 
+    # Show model size
+    model_size = sum(p.numel() for p in model.parameters())
+    logging.info(f'Model Params : {model_size / 1024 / 1024:.2f}M')
+
     # Load checkpoint
     ckpt = torch.load(
         os.path.join(logdir, f'ckpt_latest.pt'),
         map_location=config.device
     )
+    logging.info(f'Checkpoint step : {ckpt["step"]}')
     model.load_state_dict(ckpt['ema_model'])
 
     # Directory setup
@@ -252,7 +266,7 @@ def eval(config, logdir):
         os.makedirs(os.path.join(sample_dir, option), exist_ok=True)
         xs, ys = [], []
         with trange(0, sample_size, batch_size, dynamic_ncols=True) as pbar:
-            for step in pbar:
+            for _ in pbar:
                 x_0, y_0 = next(eval_datalooper)
                 x_0 = x_0.to(config.device)
                 y_0 = y_0.to(config.device)
