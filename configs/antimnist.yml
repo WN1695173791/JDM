@@ -1,7 +1,6 @@
 dataset:
   x_name: 'mnist'
   x_root: '../../data/mnist/'
-  x_img_size: 32
   x_ch: 1
   y_name: 'anti_mnist'
   y_root: '../../data/mnist/'

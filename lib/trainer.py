@@ -34,9 +34,11 @@ class DiffusionTrainer(nn.Module):
         self,
         x_0: torch.Tensor,
         y_0: torch.Tensor,
+        c: torch.Tensor, # mask tensor as an indicator (baseline)
     ):
         B = x_0.shape[0]
         device = x_0.device
+        assert device == y_0.device
 
         # Forward process
         t = torch.rand(B, device=device) * (self.sde.T - self.t_eps) + self.t_eps
@@ -45,13 +47,22 @@ class DiffusionTrainer(nn.Module):
         x_t = x_mean + x_std * x_noise
         y_t = y_mean + y_std * y_noise
 
+        # BASELINE (22.02.12)
+        assert c.shape == (B, 1, 1, 1)
+        c_x = c.expand(*(x_0.shape)).to(device)
+        c_y = c.expand(*(y_0.shape)).to(device)
+        x_t = x_0 * c_x + x_t * (1 - c_x)
+        y_t = y_0 * (1 - c_y) + y_t * c_y 
+
         if self.model_pred_type == 'noise':
             x_noise_pred, y_noise_pred = self.model(x_t, y_t, t)
             # x loss
             x_loss = torch.square(x_noise_pred - x_noise)
+            x_loss = x_loss * (1 - c_x) # baseline
             x_loss = x_loss.reshape(B, -1)
             # y loss
             y_loss = torch.square(y_noise_pred - y_noise)
+            y_loss = y_loss * c_y # baseline
             y_loss = y_loss.reshape(B, -1)
 
         elif self.model_pred_type == 'original':

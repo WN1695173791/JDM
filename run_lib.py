@@ -31,7 +31,6 @@ def train(config, logdir, resume=True):
     # Model setup
     if config.model.name == 'unet':
         net_model = UNet(
-            config.dataset.x_img_size,
             config.dataset.x_ch,
             config.dataset.y_ch,
             config.model.ch,
@@ -117,7 +116,9 @@ def train(config, logdir, resume=True):
             x_0, y_0 = next(datalooper)
             x_0 = x_0.to(config.device)
             y_0 = y_0.to(config.device)
-            x_loss, y_loss = trainer(x_0, y_0)
+            c = torch.ones(config.train.batch_size) * 0.5
+            c = torch.bernoulli(c)[:, None, None, None]
+            x_loss, y_loss = trainer(x_0, y_0, c)
             loss = torch.cat([x_loss, y_loss], dim=1).mean()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(
@@ -213,7 +214,6 @@ def eval(config, logdir):
     # Model setup
     if config.model.name == 'unet':
         model = UNet(
-            config.dataset.x_img_size,
             config.dataset.x_ch,
             config.dataset.y_ch,
             config.model.ch,

@@ -57,7 +57,13 @@ class DiffusionSampler(nn.Module):
             y_prev += diffusion_y * np.sqrt(dt) * z2
         return x_prev, y_prev
 
-    def corrector(self, time_step, x_t, y_t):
+    def corrector(
+        self,
+        t: torch.Tensor,
+        x_t: torch.Tensor,
+        y_t: torch.Tensor,
+        no_noise: bool = False,
+    ):
         # Empty yet! 
         return x_t, y_t
 
@@ -93,6 +99,18 @@ class DiffusionSampler(nn.Module):
             t = timesteps[time_step]
             t = t * torch.ones(B).to(device)
 
+            # x->y (controllable generation)
+            if x_0 is not None:
+                # x_mean, _, x_std, _ = self.sde.marginal_prob(x_0, torch.zeros_like(y_t), t)
+                # x_t = x_mean + x_std * torch.randn_like(x_t)
+                x_t = x_0
+
+            # y->x (controllable generation)
+            elif y_0 is not None:
+                # _, y_mean, _, y_std = self.sde.marginal_prob(torch.zeros_like(x_t), y_0, t)
+                # y_t = y_mean + y_std * torch.randn_like(y_t)
+                y_t = y_0
+
             # Last timestep -> no noise (only drift term is applied)
             if time_step > 0:
                 no_noise = False
@@ -103,17 +121,7 @@ class DiffusionSampler(nn.Module):
             x_t, y_t = self.predictor(t, x_t, y_t, no_noise)
 
             # Corrector
-            x_t, y_t = self.corrector(t, x_t, y_t)
-
-            # x->y (controllable generation)
-            if x_0 is not None:
-                x_mean, _, x_std, _ = self.sde.marginal_prob(x_0, torch.zeros_like(y_t), t)
-                x_t = x_mean + x_std * torch.randn_like(x_t)
-
-            # y->x (controllable generation)
-            elif y_0 is not None:
-                _, y_mean, _, y_std = self.sde.marginal_prob(torch.zeros_like(x_t), y_0, t)
-                y_t = y_mean + y_std * torch.randn_like(y_t)
+            x_t, y_t = self.corrector(t, x_t, y_t, no_noise)
 
             # (Optional) show the current time step via tqdm
             if pbar is not None:

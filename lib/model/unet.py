@@ -150,7 +150,6 @@ class ResBlock(nn.Module):
 
 class UNet(nn.Module):
     def __init__(self,
-        image_size: int,
         x_ch: int,
         y_ch: int,
         ch: int,
@@ -163,17 +162,7 @@ class UNet(nn.Module):
         assert all([i < len(ch_mult) for i in attn]), 'attn index out of bound'
         tdim = ch * 4
         self.time_embedding = TimeEmbedding(ch, tdim)
-        # self.head = nn.Conv2d(x_ch+y_ch, ch, kernel_size=3, stride=1, padding=1)
-        self.head_x = nn.Sequential(
-            nn.Conv2d(x_ch, ch, kernel_size=3, stride=1, padding=1),
-            nn.SiLU(),
-            nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
-        )
-        self.head_y = nn.Sequential(
-            nn.Conv2d(y_ch, ch, kernel_size=3, stride=1, padding=1),
-            nn.SiLU(),
-            nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
-        )
+        self.head = nn.Conv2d(x_ch+y_ch, ch, kernel_size=3, stride=1, padding=1)
 
         self.downblocks = nn.ModuleList()
         chs = [ch]  # record output channel when dowmsample for upsample
@@ -206,49 +195,18 @@ class UNet(nn.Module):
                 self.upblocks.append(UpSample(now_ch))
         assert len(chs) == 0
 
-        # self.tail = nn.Sequential(
-        #     nn.GroupNorm(32, now_ch),
-        #     nn.SiLU(),
-        #     nn.Conv2d(now_ch, x_ch+y_ch, 3, stride=1, padding=1)
-        # )
         self.tail = nn.Sequential(
             nn.GroupNorm(32, now_ch),
             nn.SiLU(),
-            nn.Conv2d(now_ch, now_ch, kernel_size=3, stride=1, padding=1),
-        )
-        self.tail_x = nn.Sequential(
-            nn.GroupNorm(32, now_ch),
-            nn.SiLU(),
-            nn.Conv2d(now_ch, x_ch, kernel_size=3, stride=1, padding=1),
-        )
-        self.tail_y = nn.Sequential(
-            nn.GroupNorm(32, now_ch),
-            nn.SiLU(),
-            nn.Conv2d(now_ch, y_ch, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(now_ch, x_ch+y_ch, kernel_size=3, stride=1, padding=1),
         )
         self.initialize()
 
     def initialize(self):
-        # init.xavier_uniform_(self.head.weight)
-        # init.zeros_(self.head.bias)
-        # init.xavier_uniform_(self.tail[-1].weight, gain=1e-5)
-        # init.zeros_(self.tail[-1].bias)
-
-        # encode_add only
-        init.xavier_uniform_(self.head_x[0].weight)
-        init.xavier_uniform_(self.head_x[2].weight)
-        init.xavier_uniform_(self.head_y[0].weight)
-        init.xavier_uniform_(self.head_y[2].weight)
-        init.zeros_(self.head_x[0].bias)
-        init.zeros_(self.head_x[2].bias)
-        init.zeros_(self.head_y[0].bias)
-        init.zeros_(self.head_y[2].bias)
+        init.xavier_uniform_(self.head.weight)
+        init.zeros_(self.head.bias)
         init.xavier_uniform_(self.tail[-1].weight, gain=1e-5)
-        init.xavier_uniform_(self.tail_x[-1].weight, gain=1e-5)
-        init.xavier_uniform_(self.tail_y[-1].weight, gain=1e-5)
         init.zeros_(self.tail[-1].bias)
-        init.zeros_(self.tail_x[-1].bias)
-        init.zeros_(self.tail_y[-1].bias)
 
     def forward(
         self,
@@ -257,11 +215,10 @@ class UNet(nn.Module):
         t: torch.Tensor,
     ):
         # h = torch.cat([x, y], dim=3) # spatial concat (32 x 64)
-        # h = torch.cat([x, y], dim=1) # channel-wise concat
+        h = torch.cat([x, y], dim=1) # channel-wise concat
         temb = self.time_embedding(t)
 
-        # h = self.head(h)
-        h = self.head_x(x) + self.head_y(y)
+        h = self.head(h)
         hs = [h]
         # Downsampling
         for layer in self.downblocks:
@@ -282,13 +239,10 @@ class UNet(nn.Module):
 
         # Split outputs by modalities
         # channel-wise concat
-        # x_out, y_out = h[:, :-1, :, :], h[:, -1:, :, :]
+        y_ch = y.shape[1]
+        x_out, y_out = h[:, :-y_ch, :, :], h[:, -y_ch:, :, :]
 
         # spatial concat
         # x_out, y_out = h[:, :, :, :32], h[:, :, :, 32:]
-
-        # encode_add
-        x_out = self.tail_x(h)
-        y_out = self.tail_y(h)
         
         return x_out, y_out
